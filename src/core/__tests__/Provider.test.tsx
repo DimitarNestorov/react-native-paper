@@ -10,17 +10,41 @@ import {
   MD3LightTheme,
   MD3DarkTheme,
 } from '../../styles/themes';
+import type { ThemeProp } from '../../types';
 import Provider from '../Provider';
 import { useTheme } from '../theming';
 
 jest.mock('react-native-safe-area-context', () => mockSafeAreaContext);
+
+declare module 'react-native' {
+  interface AccessibilityInfoStatic {
+    removeEventListener(): void;
+    __internalListeners: Array<
+      (options: { reduceMotionEnabled: boolean }) => {}
+    >;
+  }
+
+  namespace Appearance {
+    // eslint-disable-next-line jest/no-export
+    export const __internalListeners: Array<
+      (options: { colorScheme: 'dark' }) => {}
+    >;
+
+    // eslint-disable-next-line jest/no-export
+    export function removeChangeListener(): void;
+  }
+
+  interface ViewProps {
+    theme?: object;
+  }
+}
 
 const mockAppearance = () => {
   jest.mock('react-native/Libraries/Utilities/Appearance', () => {
     const realApp = jest.requireActual(
       'react-native/Libraries/Utilities/Appearance'
     );
-    const listeners = [];
+    const listeners: Function[] = [];
     return {
       ...realApp,
       addChangeListener: jest.fn((cb) => {
@@ -45,12 +69,12 @@ const mockAccessibilityInfo = () => {
         'react-native/Libraries/Components/AccessibilityInfo/AccessibilityInfo'
       );
 
-      const listeners = [];
+      const listeners: Function[] = [];
       return {
         __esModule: true,
         default: {
           realApp,
-          addEventListener: jest.fn((event, cb) => {
+          addEventListener: jest.fn((_event, cb) => {
             listeners.push(cb);
           }),
           removeEventListener: jest.fn((cb) => {
@@ -68,7 +92,7 @@ const FakeChild = () => {
   return <View testID="provider-child-view" theme={theme} />;
 };
 
-const createProvider = (theme) => {
+const createProvider = (theme?: ThemeProp) => {
   return (
     <Provider theme={theme}>
       <FakeChild />
@@ -76,8 +100,8 @@ const createProvider = (theme) => {
   );
 };
 
-const ExtendedLightTheme = { ...MD3LightTheme, isV3: true };
-const ExtendedDarkTheme = { ...MD3DarkTheme, isV3: true };
+const ExtendedLightTheme = { ...MD3LightTheme, isV3: true } as ThemeProp;
+const ExtendedDarkTheme = { ...MD3DarkTheme, isV3: true } as ThemeProp;
 
 describe('Provider', () => {
   beforeEach(() => {
@@ -86,7 +110,7 @@ describe('Provider', () => {
 
   it('handles theme change', async () => {
     mockAppearance();
-    const { getByTestId } = render(createProvider(null));
+    const { getByTestId } = render(createProvider());
     expect(getByTestId('provider-child-view').props.theme).toStrictEqual(
       ExtendedLightTheme
     );
@@ -96,11 +120,25 @@ describe('Provider', () => {
     );
   });
 
+  it('handles overriding animation with the custom one', () => {
+    const { getByTestId } = render(
+      createProvider({
+        ...MD3LightTheme,
+        animation: { defaultAnimationDuration: 250 },
+      })
+    );
+
+    expect(getByTestId('provider-child-view').props.theme).toStrictEqual({
+      ...MD3LightTheme,
+      animation: { scale: 1, defaultAnimationDuration: 250 },
+    });
+  });
+
   it('should set AccessibilityInfo listeners, if there is no theme', async () => {
     mockAppearance();
     mockAccessibilityInfo();
 
-    const { rerender, getByTestId } = render(createProvider(null));
+    const { rerender, getByTestId } = render(createProvider());
 
     expect(AccessibilityInfo.addEventListener).toHaveBeenCalled();
     act(() =>
@@ -130,7 +168,7 @@ describe('Provider', () => {
 
   it('should set Appearance listeners, if there is no theme', async () => {
     mockAppearance();
-    const { getByTestId } = render(createProvider(null));
+    const { getByTestId } = render(createProvider());
 
     expect(Appearance.addChangeListener).toHaveBeenCalled();
     act(() => Appearance.__internalListeners[0]({ colorScheme: 'dark' }));
@@ -154,7 +192,7 @@ describe('Provider', () => {
     jest.mock('react-native/Libraries/Utilities/Appearance', () => {
       return null;
     });
-    const { getByTestId } = render(createProvider(null));
+    const { getByTestId } = render(createProvider());
     expect(Appearance).toEqual(null);
     expect(getByTestId('provider-child-view').props.theme).toStrictEqual(
       ExtendedLightTheme
@@ -169,7 +207,7 @@ describe('Provider', () => {
     'provides $label for $colorScheme color scheme',
     async ({ theme, colorScheme }) => {
       mockAppearance();
-      Appearance.getColorScheme.mockReturnValue(colorScheme);
+      (Appearance.getColorScheme as jest.Mock).mockReturnValue(colorScheme);
       const { getByTestId } = render(createProvider());
       expect(getByTestId('provider-child-view').props.theme).toStrictEqual(
         theme
@@ -186,7 +224,7 @@ describe('Provider', () => {
         primary: 'tomato',
         accent: 'yellow',
       },
-    };
+    } as ThemeProp;
     const { getByTestId } = render(createProvider(customTheme));
     expect(getByTestId('provider-child-view').props.theme).toStrictEqual(
       customTheme
@@ -203,7 +241,7 @@ describe('Provider', () => {
     'uses correct theme, $colorScheme mode, version $version',
     async ({ version, colorScheme, expectedTheme }) => {
       mockAppearance();
-      Appearance.getColorScheme.mockReturnValue(colorScheme);
+      (Appearance.getColorScheme as jest.Mock).mockReturnValue(colorScheme);
       const { getByTestId } = render(createProvider({ version }));
 
       expect(getByTestId('provider-child-view').props.theme).toStrictEqual(

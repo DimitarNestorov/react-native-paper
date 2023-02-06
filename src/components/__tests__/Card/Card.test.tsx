@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import { Animated, StyleSheet, Text } from 'react-native';
 
 import { render } from '@testing-library/react-native';
 import color from 'color';
@@ -15,6 +15,9 @@ import { getCardColors, getCardCoverStyle } from '../../Card/utils';
 const styles = StyleSheet.create({
   customBorderRadius: {
     borderRadius: 32,
+  },
+  contentStyle: {
+    flexDirection: 'column-reverse',
   },
 });
 
@@ -73,6 +76,16 @@ describe('Card', () => {
       backgroundColor: '#0000FF',
     });
   });
+
+  it('renders with a content style', () => {
+    const { getByTestId } = render(
+      <Card contentStyle={styles.contentStyle}>
+        <Text>Content</Text>
+      </Card>
+    );
+
+    expect(getByTestId('card')).toHaveStyle(styles.contentStyle);
+  });
 });
 
 describe('CardActions', () => {
@@ -88,6 +101,26 @@ describe('CardActions', () => {
     expect(getByTestId('card-actions').props.children[0].props.mode).toBe(
       'contained'
     );
+  });
+
+  it('renders button with custom styles', () => {
+    const { getByTestId } = render(
+      <Card>
+        <Card.Actions>
+          <Button
+            testID="card-actions-button"
+            mode="contained"
+            style={styles.customBorderRadius}
+          >
+            Agree
+          </Button>
+        </Card.Actions>
+      </Card>
+    );
+
+    expect(getByTestId('card-actions-button')).toHaveStyle({
+      borderRadius: 32,
+    });
   });
 });
 
